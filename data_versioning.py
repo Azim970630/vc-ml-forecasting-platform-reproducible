@@ -2,11 +2,18 @@
 
 This module tracks data versions using content hashes, integrates with DVC,
 and enables reproducible experiments by capturing exact data lineage.
+
+For production use, combine with DVC for data file management:
+1. dvc add data/raw_data.csv        # Track data with DVC
+2. dvc remote add s3remote s3://...  # Configure remote storage
+3. dvc push                          # Push data to remote
+4. Later: dvc pull                   # Restore exact data
 """
 
 import hashlib
 import json
 import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -109,6 +116,11 @@ class DataVersionTracker:
     ) -> Dict[str, Any]:
         """Track external data file version.
 
+        For production use, also track with DVC:
+            dvc add data/raw_data.csv
+            dvc remote add s3remote s3://bucket/path
+            dvc push
+
         Args:
             file_path: Path to data file
             name: Dataset name
@@ -120,6 +132,9 @@ class DataVersionTracker:
         file_hash = compute_file_hash(file_path)
         timestamp = datetime.now().isoformat()
         file_size = os.path.getsize(file_path)
+        
+        # Check if file is DVC-tracked
+        dvc_tracked = self._is_dvc_tracked(file_path)
 
         version_info = {
             "name": name,
@@ -127,6 +142,7 @@ class DataVersionTracker:
             "hash": file_hash,
             "timestamp": timestamp,
             "size_bytes": file_size,
+            "dvc_tracked": dvc_tracked,
             "metadata": metadata or {},
         }
 
@@ -138,6 +154,18 @@ class DataVersionTracker:
             json.dump(version_info, f, indent=2)
 
         return version_info
+
+    def _is_dvc_tracked(self, file_path: str) -> bool:
+        """Check if file is tracked by DVC.
+
+        Args:
+            file_path: Path to file
+
+        Returns:
+            True if file is DVC-tracked, False otherwise
+        """
+        dvc_file = f"{file_path}.dvc"
+        return os.path.exists(dvc_file)
 
     def log_data_lineage(
         self,
@@ -244,15 +272,55 @@ To reproduce experiment {run_id}:
             instructions += f"   - {dataset}: {data_hash}\n"
 
         instructions += f"""
-3. Restore data (if using DVC):
-   dvc checkout
+3. For production data restoration:
+   
+   If data was tracked with DVC (dvc add data/raw_data.csv):
+   
+   a) Configure DVC remote if not already done:
+      dvc remote add myremote s3://bucket/path  # or other storage
+   
+   b) Pull the exact data used:
+      dvc pull
+   
+   c) This restores files to match the data hashes above
+   
+   Note: Data files (.dvc files) must be committed to git
 
 4. Run training with same configuration:
-   python train.py --experiment-id {run_id}
+   python3 train.py --experiment-id {run_id}
 
 Note: The exact data versions and code commit ensure reproducible results.
 """
         return instructions
+
+    def restore_data_from_dvc(self, force: bool = False) -> bool:
+        """Restore data from DVC remote.
+
+        Args:
+            force: Force restore even if files exist
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cmd = ["dvc", "pull"]
+            if force:
+                cmd.append("--force")
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            print("✓ Data restored from DVC remote")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Failed to restore data from DVC: {e.stderr}")
+            return False
+        except FileNotFoundError:
+            print("⚠ DVC not installed or not in PATH")
+            return False
 
 
 def get_git_commit_hash(repo_path: str = ".") -> Optional[str]:

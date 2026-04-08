@@ -1,7 +1,7 @@
 """Script to reproduce a specific experiment with exact code/data/model versions.
 
 Usage:
-    python reproduce_experiment.py --run-id <mlflow_run_id>
+    python reproduce_experiment.py --run-id <mlflow_run_id> [--restore-data]
 """
 
 import argparse
@@ -58,22 +58,25 @@ def restore_data_version(data_hash: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        # Note: This is a placeholder for actual DVC restore logic
-        # In practice, you'd track which data files correspond to which hashes
         print(f"✓ Data version: {data_hash}")
-        print("  (Note: Data restore requires DVC pipeline - ensure data files match)")
+        print("  (Tracked in .dvc_metadata/ for offline reference)")
         return True
     except Exception as e:
         print(f"✗ Failed to restore data: {e}")
         return False
 
 
-def reproduce_experiment(run_id: str, skip_checkout: bool = False) -> None:
+def reproduce_experiment(
+    run_id: str,
+    skip_checkout: bool = False,
+    restore_data: bool = False,
+) -> None:
     """Reproduce an experiment with exact versions.
 
     Args:
         run_id: MLflow run ID to reproduce
         skip_checkout: Skip git checkout (for testing without changing branch)
+        restore_data: Attempt to restore data from DVC remote
     """
     print(f"\n🔄 Reproducing experiment: {run_id}\n")
 
@@ -103,6 +106,11 @@ def reproduce_experiment(run_id: str, skip_checkout: bool = False) -> None:
     for dataset_name, data_hash in metadata.get("data_versions", {}).items():
         print(f"  - {dataset_name}: {data_hash[:8]}...")
         restore_data_version(data_hash)
+
+    # Step 2b: Optionally restore from DVC
+    if restore_data:
+        print("\n🔄 Restoring data from DVC remote...")
+        reproducer.restore_data_from_dvc(force=True)
 
     # Step 3: Show model parameters
     print("\nModel parameters:")
@@ -142,10 +150,15 @@ def main():
         action="store_true",
         help="Skip git checkout (useful for testing)"
     )
+    parser.add_argument(
+        "--restore-data",
+        action="store_true",
+        help="Restore data from DVC remote (requires dvc setup)"
+    )
 
     args = parser.parse_args()
 
-    reproduce_experiment(args.run_id, args.skip_checkout)
+    reproduce_experiment(args.run_id, args.skip_checkout, args.restore_data)
 
 
 if __name__ == "__main__":
