@@ -415,3 +415,68 @@ dvc pull data/raw_data_2026-04-08.csv.dvc
 - [DATA_VERSIONING.md](DATA_VERSIONING.md) — Core concepts
 - [README.md](README.md) — Project overview
 - [DVC Documentation](https://dvc.org/doc) — Full DVC guide
+
+## Cost Considerations for Cloud Storage
+
+### AWS S3 Pricing
+
+**Development**: Start with local storage (free)
+```bash
+dvc remote add myremote ./data_store
+```
+
+**Production**: Migrate to S3 for team/production use
+```bash
+dvc remote add s3remote s3://my-bucket/ml-data
+```
+
+**Typical Costs**:
+- Storage: ~$0.023/GB/month (Standard tier)
+- Requests: Negligible (~$20-30/month)
+- Data transfer OUT: ~$0.09/GB (can be significant)
+
+**Example**:
+- 10GB daily snapshots × 365 days = 3.65TB/year
+- Monthly storage: 3650GB × $0.023 = ~$84/month
+- Annual cost: ~$1,000-1,500 including requests
+
+**Cost Optimization**:
+- Use Intelligent-Tiering: ~$0.0125/GB/month (auto-optimizes)
+- Archive old data with Glacier: ~$0.004/GB/month
+- Compress data before upload
+- Use VPC Endpoint (if on EC2): saves transfer costs
+
+### Migration Path
+
+Start with **local storage** (current setup):
+```bash
+# Development - no costs
+dvc remote add myremote ./data_store
+```
+
+Later, when ready for production:
+```bash
+# Create S3 bucket
+aws s3 mb s3://my-ml-bucket
+
+# Update DVC remote
+dvc remote modify myremote url s3://my-ml-bucket/ml-data
+
+# Push all data to S3
+dvc push
+
+# Team members can now pull data
+dvc pull
+```
+
+### Recommendation
+
+✅ **For this project**: Keep local storage for now (free, simple)
+- Perfect for development and testing
+- No setup complexity
+- Easy to switch to S3 later without code changes
+
+When you're ready for production:
+- Migrate to S3 (affordable, widely used)
+- Or use Azure Blob Storage (if already using Azure)
+- Or use GCS (if already using Google Cloud)
