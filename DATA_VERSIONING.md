@@ -1,378 +1,394 @@
-# Data Versioning Guide
+# Data Versioning & Reproducibility Guide
 
-This guide explains how the ML Forecasting Platform tracks and manages data versions to ensure **reproducibility** of experiments.
+This guide explains how the ML Forecasting Platform ensures complete reproducibility through **data versioning**, **code versioning**, and **experiment tracking**.
 
 ## Overview
 
-**Problem**: When running ML experiments, you often need to know:
+**The Problem**: When running ML experiments, you need to know:
 - Exactly which data was used for training?
-- Can I reproduce this experiment with the same result?
+- Can I reproduce this experiment and get the same results?
 - What changed between two experiments?
 
-**Solution**: The platform uses **DVC (Data Version Control)** + **MLflow** to create a complete lineage of:
-- Data versions (via content hashing)
-- Code versions (via git commits)
-- Model artifacts and metrics
-
-## Architecture
+**The Solution**: Three-layer versioning system:
 
 ```
-Git Repository (Code)
-    ↓
-    ├─ Code commit hash captured in MLflow
-    ↓
-Training Pipeline
-    ├─ Loads raw data → compute hash
-    ├─ Engineers features → compute hash
-    ├─ Splits train/test → compute hash
-    ↓
-MLflow Run
-    ├─ Logs all data hashes
-    ├─ Logs code version (git commit)
-    ├─ Logs model + metrics
-    └─ Logs lineage artifact (data_lineage.json)
-    
-DVC Metadata (.dvc_metadata/)
-    └─ Stores detailed version info for each data stage
+Layer 1: Data Versioning    → SHA-256 hashing of DataFrames
+Layer 2: Code Versioning    → Git commit hashes
+Layer 3: Experiment Tracking → MLflow logging
 ```
+
+Together, these enable **complete reproducibility**.
 
 ## How It Works
 
-### 1. Data Hashing
+### Layer 1: Data Versioning via Content Hashing
 
-When training runs, the platform:
-- **Computes SHA-256 hash** of each data transformation stage
-- Tracks: raw data → featured data → train/test splits
-- Stores hash metadata in `.dvc_metadata/` folder
+Every data transformation is hashed using SHA-256:
 
-```python
-# Example: Track data version
-tracker = DataVersionTracker()
-raw_data_version = tracker.track_training_data(
-    raw_data, 
-    name="raw_data",
-    metadata={"source": "dummy"}
-)
-print(raw_data_version['hash'])  # e.g., "a1b2c3d4..."
+```
+Training Pipeline
+├─ Load raw data
+│  └─ Compute hash: c54d29c9...  ← Captures exact data state
+├─ Engineer features
+│  └─ Compute hash: e971c052...  ← Captures feature engineering state
+├─ Split train/test
+│  ├─ Train hash: e03560ee...
+│  └─ Test hash: 0ea5701f...
+└─ Train model
 ```
 
-### 2. MLflow Integration
+**Key Properties**:
+- **Deterministic**: Same data → same hash (always)
+- **Unique**: Different data → different hash (2^256 possibilities)
+- **Sensitive**: Detects any changes (value, order, precision)
 
-Each experiment logs:
-- **Data hashes** as parameters (e.g., `data_raw_data_hash`, `data_train_data_hash`)
-- **Code version** (git commit hash)
-- **Data lineage** as artifact (`data_lineage.json`)
-- Model artifacts and metrics
+### Layer 2: Code Versioning via Git
 
-Example MLflow parameters:
+Git commit hash is captured with each training run:
+
 ```
-data_raw_data_hash: a1b2c3d4e5f6g7h8...
-data_featured_data_hash: i9j0k1l2m3n4o5p6...
-data_train_data_hash: q7r8s9t0u1v2w3x4...
-data_test_data_hash: y5z6a7b8c9d0e1f2...
-code_version: abc123def456ghi789...
+git commit abc123... → Training Run
+  ↓
+MLflow logs: code_version = abc123...
+  ↓
+Later: git checkout abc123... + rerun = exact same code
 ```
 
-### 3. Complete Lineage
+### Layer 3: Experiment Tracking with MLflow
 
-The `data_lineage.json` artifact contains complete information:
+All versions are logged to MLflow:
 
+```
+MLflow Run
+├─ Parameters
+│  ├─ data_raw_data_hash: c54d29c9...
+│  ├─ data_featured_data_hash: e971c052...
+│  ├─ data_train_data_hash: e03560ee...
+│  ├─ data_test_data_hash: 0ea5701f...
+│  └─ code_version: abc123...
+├─ Metrics
+│  ├─ mae: 18.56
+│  ├─ rmse: 20.17
+│  ├─ mape: 9.64
+│  └─ smape: 10.21
+└─ Artifacts
+   ├─ lightgbm_model.pkl (trained model)
+   └─ data_lineage.json (complete history)
+```
+
+## Using Data Versioning
+
+### Running Training with Automatic Versioning
+
+```bash
+python3 train.py
+```
+
+Output:
+```
+Raw data hash: c54d29c9
+Featured data hash: e971c052
+Train hash: e03560ee
+Test hash: 0ea5701f
+
+Experiment run ID: 541d0c7fdb9a43999a5d12be2c7f9d31
+Code version: 91b64a1504835d4564107a144217de38cb979a9d
+```
+
+All hashes are automatically:
+- Logged to MLflow
+- Saved to `.dvc_metadata/` folder
+- Stored in `data_lineage.json` artifact
+
+### Viewing Data Lineage in MLflow
+
+```bash
+mlflow ui
+```
+
+Then in browser:
+1. Open http://localhost:5000
+2. Click on a run
+3. Go to **Artifacts** tab
+4. View `data_lineage.json` to see complete data history
+
+Example:
 ```json
 {
-  "timestamp": "2026-04-08T15:30:00",
-  "code_version": "abc123def456ghi789",
+  "timestamp": "2026-04-08T15:15:51",
+  "code_version": "91b64a1504835d4...",
   "datasets": {
     "raw_data": {
-      "hash": "a1b2c3d4...",
-      "timestamp": "2026-04-08T15:29:00",
-      "shape": [1000, 5],
-      "rows": 1000,
-      "columns": ["timestamp", "value", "trend", "seasonality", "noise"]
+      "hash": "c54d29c9...",
+      "shape": [200, 3],
+      "rows": 200,
+      "columns": ["timestamp", "series_id", "target"],
+      "metadata": {"source": "offline"}
     },
     "featured_data": {
-      "hash": "i9j0k1l2...",
-      "timestamp": "2026-04-08T15:29:15",
-      "shape": [1000, 25],
-      "columns": ["timestamp", "value", "lag_1", "lag_7", "rolling_mean_7", ...]
+      "hash": "e971c052...",
+      "shape": [200, 25],
+      "rows": 200
     },
     "train_data": {
-      "hash": "q7r8s9t0...",
-      "timestamp": "2026-04-08T15:29:30",
-      "shape": [800, 25],
-      "split": "train"
+      "hash": "e03560ee...",
+      "shape": [160, 25]
     },
     "test_data": {
-      "hash": "y5z6a7b8...",
-      "timestamp": "2026-04-08T15:29:30",
-      "shape": [200, 25],
-      "split": "test"
+      "hash": "0ea5701f...",
+      "shape": [40, 25]
     }
   }
 }
 ```
 
-## Usage
+## Reproducing Experiments
 
-### Running Training with Data Versioning
+### Complete Reproduction Workflow
 
-Simply run the training pipeline as usual:
+To reproduce an experiment exactly:
 
-```bash
-python train.py
-```
+#### Step 1: Get the run ID
 
-The pipeline automatically:
-1. Tracks all data transformations
-2. Logs hashes to MLflow
-3. Saves lineage artifact
-4. Displays run ID and code version
+Open MLflow UI and find the run you want to reproduce. Copy its run ID.
 
-Output:
-```
-Raw data hash: a1b2c3d4
-Featured data hash: i9j0k1l2
-Train hash: q7r8s9t0
-Test hash: y5z6a7b8
-
-Experiment run ID: abc-123-def
-Code version: abc123def456ghi789
-```
-
-### Reproducing an Experiment
-
-To reproduce a specific experiment with exact same data/code/model:
+#### Step 2: Checkout code version
 
 ```bash
-python reproduce_experiment.py --run-id abc-123-def
+# First, find the code version
+python3 reproduce_experiment.py --run-id YOUR_RUN_ID
 ```
 
-Output:
+Output shows:
 ```
-🔄 Reproducing experiment: abc-123-def
-
-Reproduction Plan:
-------------------------------------------------------------
-✓ Checked out code version: abc123def456ghi789
-
-Data versions:
-  - raw_data: a1b2c3d4...
-  - featured_data: i9j0k1l2...
-  - train_data: q7r8s9t0...
-  - test_data: y5z6a7b8...
-
-Model parameters:
-  - model_type: lightgbm
-  - data_source: dummy
-  - n_train: 800
-  - n_test: 200
-
-============================================================
-Instructions to reproduce:
-============================================================
-
-To reproduce experiment abc-123-def:
-
-1. Checkout code version:
-   git checkout abc123def456ghi789
-
-2. Data versions used:
-   - raw_data: a1b2c3d4...
-   - featured_data: i9j0k1l2...
-   - train_data: q7r8s9t0...
-   - test_data: y5z6a7b8...
-
-3. Restore data (if using DVC):
-   dvc checkout
-
-4. Run training with same configuration:
-   python train.py --experiment-id abc-123-def
-
-Note: The exact data versions and code commit ensure reproducible results.
-
-Ready to reproduce. Execute training with:
-  python train.py
-
-This will use the exact same code/data/config from run abc-123-def
+Code version: 91b64a1504835d4...
 ```
 
-## Checking Data Lineage in MLflow
+Then checkout:
+```bash
+git checkout 91b64a1504835d4
+```
 
-View the complete lineage in MLflow UI:
-
-1. Open MLflow UI: `mlflow ui` (or check configured tracking URI)
-2. Select the experiment run
-3. Go to **Artifacts** → `data_lineage.json`
-4. View the complete data transformation history
-
-## DVC Integration
-
-### Initialize DVC (Already Done)
+#### Step 3: Run training again
 
 ```bash
-dvc init --no-scm
-dvc remote add -d myremote ./data_store
+python3 train.py
 ```
 
-### Track External Data Files with DVC
+#### Step 4: Compare results
 
-To version control actual CSV files:
+The metrics should match (or be very close due to stochastic behavior):
 
+```
+MLflow Run 1 (original):
+- mae: 18.56
+- rmse: 20.17
+
+MLflow Run 2 (reproduced):
+- mae: 18.56  ← Should match!
+- rmse: 20.17
+```
+
+### Why Exact Reproduction Works
+
+```
+Original Experiment              Reproduced Experiment
+├─ Code: abc123                  └─ Code: abc123 (checked out)
+├─ Data hash: c54d29c9           └─ Data hash: c54d29c9 (same input)
+├─ Features hash: e971c052       └─ Features hash: e971c052 (same code)
+├─ Train hash: e03560ee          └─ Train hash: e03560ee (same split)
+└─ Result: MAE = 18.56           └─ Result: MAE = 18.56 ✓
+```
+
+## Diagnostic Workflows
+
+### Scenario 1: Inference Results Don't Match
+
+**Problem**: You got different results from the same model.
+
+**Investigation**:
 ```bash
-dvc add data/raw_data.csv
-git add data/raw_data.csv.dvc .gitignore
-git commit -m "Add raw data version"
+# 1. Find the original run in MLflow
+mlflow ui
+
+# 2. Check what data/code was used
+python3 reproduce_experiment.py --run-id ORIGINAL_RUN_ID
+
+# 3. Compare data hashes
+# - Did raw_data hash change? → Input data changed
+# - Did code_version change? → Code changed
+# - Did model hash change? → Model retrained
+
+# 4. If data changed, check what changed:
+git log --oneline data/
 ```
 
-This creates `data/raw_data.csv.dvc` which tracks the file with DVC.
+### Scenario 2: Reproduce for Validation
 
-### Using DVC Pipelines
+**Problem**: Auditor asks: "Can you prove this model works the same way?"
 
-Run the DVC pipeline:
-
+**Solution**:
 ```bash
-dvc repro dvc.yaml
+# 1. Get the run ID from audit records
+RUN_ID="541d0c7fdb9a43999a5d12be2c7f9d31"
+
+# 2. Show complete reproduction instructions
+python3 reproduce_experiment.py --run-id $RUN_ID
+
+# 3. Execute the reproduction
+python3 train.py
+
+# 4. MLflow shows side-by-side metrics match → Validation complete!
 ```
 
-This:
-- Executes stages in order
-- Caches outputs
-- Tracks dependencies
-- Enables reproducible workflows
+### Scenario 3: Debug Model Performance Regression
 
-## Diagnostic Workflow
+**Problem**: Model performance dropped between experiments.
 
-### Scenario: Inference Results Don't Match
-
-1. **Find the experiment run**:
-   ```bash
-   mlflow ui  # Find run ID where you got results
-   ```
-
-2. **Reproduce exact conditions**:
-   ```bash
-   python reproduce_experiment.py --run-id YOUR_RUN_ID
-   ```
-
-3. **Compare data versions**:
-   - Check if data_lineage.json shows different data hashes
-   - Verify git commit matches
-   - Check if external data files changed
-
-4. **Debug specific stage**:
-   ```python
-   from data_versioning import DataVersionTracker
-   tracker = DataVersionTracker()
-   
-   # Load the archived version info
-   # Compare with current data hashes
-   ```
-
-### Scenario: Model Diagnostics
-
-To diagnose why model performs differently:
-
+**Solution**:
 ```bash
-# Get the experiment run ID
-python reproduce_experiment.py --run-id abc-123-def
+# 1. Get two run IDs (old = good, new = bad)
+python3 reproduce_experiment.py --run-id OLD_RUN_ID
+python3 reproduce_experiment.py --run-id NEW_RUN_ID
 
-# This shows:
-# - Exact code version used
-# - Exact data hashes used
-# - Model parameters
-# - Ability to re-create exact conditions
+# 2. Compare outputs:
+echo "=== Data Changes ==="
+diff .dvc_metadata/raw_data_old.json .dvc_metadata/raw_data_new.json
+
+echo "=== Code Changes ==="
+git diff OLD_COMMIT..NEW_COMMIT
+
+echo "=== Metric Changes ==="
+# Use MLflow UI to compare metrics side-by-side
 ```
+
+## Understanding Data Hashes
+
+### When Does Hash Change?
+
+Hash changes when:
+- ✓ Row values change (data changed)
+- ✓ Row order changes (shuffle happened)
+- ✓ Columns added/removed (features changed)
+- ✓ Float precision changes (numerical instability)
+- ✓ Index changes (resampling occurred)
+
+### When Does Hash Stay the Same?
+
+Hash stays same when:
+- ✗ Column names change (doesn't affect hash)
+- ✗ Memory location changes (only values matter)
+- ✗ Comments added to code (code changes don't affect data)
+
+### Hash Format
+
+```
+c54d29c95a144d72d576e3c1e20848b210081b37b49fff98ab94585a1105ffa9
+                                      ↑
+                           First 8 chars used as ID
+                           in .dvc_metadata/ filenames
+```
+
+## Metadata Storage
+
+### Location: `.dvc_metadata/` Directory
+
+```
+.dvc_metadata/
+├── raw_data_train_c54d29c9.json
+├── featured_data_train_e971c052.json
+├── train_data_train_e03560ee.json
+└── test_data_test_0ea5701f.json
+```
+
+### File Format
+
+Each file contains:
+
+```json
+{
+  "name": "raw_data",
+  "split": "train",
+  "hash": "c54d29c95a144d72d576e3c1e20848b...",
+  "timestamp": "2026-04-08T15:15:51.914053",
+  "shape": [200, 3],
+  "rows": 200,
+  "columns": ["timestamp", "series_id", "target"],
+  "metadata": {
+    "source": "offline"
+  }
+}
+```
+
+### Versioning Metadata
+
+Track metadata files in git:
+```bash
+git add .dvc_metadata/
+git commit -m "Log data versions for experiment run"
+```
+
+This creates an audit trail of all data versions used.
 
 ## Best Practices
 
-1. **Always push to git before training**
-   - Ensures code version is recorded
-   - Allows later git checkout for reproduction
-
-2. **Use meaningful data sources**
-   - Track whether data came from dummy generator or external file
-   - Store source info in metadata
-
-3. **Monitor data lineage**
-   - Check `data_lineage.json` in MLflow artifacts
-   - Detect when data changes unexpectedly
-
-4. **Version control DVC files**
-   ```bash
-   git add *.dvc .dvc/config .dvcignore
-   git commit -m "Add data version tracking"
-   ```
-
-5. **Document data transformations**
-   - Keep feature engineering code clear
-   - Comments on why certain features are created
-
-## Troubleshooting
-
-### "No such file or directory: .dvc_metadata"
-
-The metadata directory is created automatically during first run. If it doesn't exist:
+### 1. Always Commit Before Training
 
 ```bash
-python -c "from data_versioning import DataVersionTracker; DataVersionTracker()"
-```
-
-### "code_version: unknown"
-
-This means the project is not a git repository or git commit couldn't be found:
-
-```bash
-git init
 git add .
-git commit -m "Initial commit"
+git commit -m "Feature: add new preprocessing"
+python3 train.py  # Code version will be captured
 ```
 
-### Data hash changed but data looks the same
+This ensures reproducibility is possible.
 
-This can happen due to:
-- Different row order
-- Float precision differences
-- Index changes
+### 2. Monitor Data Changes
 
-To debug:
+```bash
+# Check if data changed unexpectedly
+ls -la .dvc_metadata/
+# If new files appear, data changed!
+
+# See what changed
+git diff .dvc_metadata/
+```
+
+### 3. Document Data Sources
 
 ```python
-import pandas as pd
-from data_versioning import compute_dataframe_hash
-
-df1 = pd.read_csv('data1.csv')
-df2 = pd.read_csv('data2.csv')
-
-print(f"Hash 1: {compute_dataframe_hash(df1)}")
-print(f"Hash 2: {compute_dataframe_hash(df2)}")
-
-# Check differences
-print(df1.equals(df2))
+# When tracking data, add metadata
+version = tracker.track_training_data(
+    df,
+    name="raw_data",
+    metadata={
+        "source": "offline",
+        "filepath": "data/raw_data.csv",
+        "date_collected": "2026-04-08"
+    }
+)
 ```
 
-## Key Modules
+### 4. Use Meaningful Git Commits
 
-### `data_versioning.py`
+```bash
+# Good ✓
+git commit -m "Fix: handle null values in feature engineering"
 
-- **`compute_file_hash()`** - Hash a file
-- **`compute_dataframe_hash()`** - Hash a DataFrame
-- **`DataVersionTracker`** - Main class to track data versions
-- **`ExperimentReproducer`** - Reproduce experiments from run IDs
-- **`get_git_commit_hash()`** - Get current git commit
+# Bad ✗
+git commit -m "update"
+```
 
-### `pipelines/training.py`
+When you reproduce, you'll see the commit message in `git log`.
 
-Enhanced to:
-- Create DataVersionTracker instance
-- Track all data stages
-- Log complete lineage to MLflow
+### 5. Review Lineage Before Inference
 
-### `reproduce_experiment.py`
-
-Standalone script to:
-- Query MLflow for experiment metadata
-- Show reproduction steps
-- Checkout code version
-- Display data versions
+```bash
+# Before using a model in production:
+mlflow ui
+# Navigate to run
+# Check data_lineage.json artifact
+# Verify data sources and code version
+```
 
 ## Advanced Usage
 
@@ -380,41 +396,149 @@ Standalone script to:
 
 ```python
 from data_versioning import DataVersionTracker
+import pandas as pd
 
 tracker = DataVersionTracker()
 
-# Track custom data with metadata
-version = tracker.track_training_data(
-    my_dataframe,
-    name="my_custom_data",
-    metadata={
-        "source": "external_api",
-        "date_collected": "2026-04-08",
-        "rows_filtered": 150
-    }
+# Track external data file
+version = tracker.track_external_data(
+    "data/my_data.csv",
+    name="external_data",
+    metadata={"source": "API", "endpoint": "/v1/data"}
 )
 
-print(f"Version hash: {version['hash']}")
+print(f"File hash: {version['hash']}")
+print(f"File size: {version['size_bytes']} bytes")
 ```
 
-### Querying Lineage Programmatically
+### Programmatic Lineage Query
 
 ```python
 from data_versioning import ExperimentReproducer
-from mlflow import get_run
 
 reproducer = ExperimentReproducer()
-metadata = reproducer.get_experiment_metadata("your-run-id")
+metadata = reproducer.get_experiment_metadata("run-id")
 
-print(f"Code version: {metadata['code_version']}")
+# Extract information
+print(f"Code: {metadata['code_version']}")
 print(f"Data versions: {metadata['data_versions']}")
-print(f"Model params: {metadata['model_params']}")
+print(f"Model config: {metadata['model_params']}")
+
+# Use for validation
+if metadata['data_versions']['raw_data'] == expected_hash:
+    print("✓ Data matches expected version")
+else:
+    print("✗ Data mismatch - reproduction unsafe")
 ```
 
-## Next Steps
+### Comparing Experiments
 
-1. Run a training pipeline and note the run ID
-2. Check MLflow UI to see logged data hashes
-3. Try reproducing with `reproduce_experiment.py`
-4. Set up git repository if not already done
-5. Configure DVC remote storage for team collaboration
+```python
+from data_versioning import ExperimentReproducer
+
+reproducer = ExperimentReproducer()
+
+# Get two experiments
+exp1 = reproducer.get_experiment_metadata("run-1")
+exp2 = reproducer.get_experiment_metadata("run-2")
+
+# Compare
+if exp1['data_versions'] == exp2['data_versions']:
+    print("✓ Same data used")
+else:
+    print("✗ Different data - metrics not comparable")
+
+if exp1['code_version'] == exp2['code_version']:
+    print("✓ Same code used")
+else:
+    print("✗ Different code - model logic may differ")
+```
+
+## Troubleshooting
+
+### Q: "code_version: unknown"
+
+**Cause**: Project is not a git repository.
+
+**Fix**:
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+python3 train.py
+```
+
+### Q: Data hash changed but data looks same
+
+**Cause**: Minor differences (float precision, row order, index).
+
+**Debug**:
+```python
+import pandas as pd
+from data_versioning import compute_dataframe_hash
+
+df1 = pd.read_csv('data1.csv')
+df2 = pd.read_csv('data2.csv')
+
+print(compute_dataframe_hash(df1))
+print(compute_dataframe_hash(df2))
+print(df1.equals(df2))
+```
+
+### Q: Can't checkout old commit
+
+**Cause**: Commit doesn't exist in this repository (different repo history).
+
+**Solution**: Reproducibility works within same repository only.
+
+### Q: MLflow not showing old runs
+
+**Cause**: Using different tracking URI or `mlruns/` was deleted.
+
+**Fix**:
+```bash
+# Verify tracking URI
+cat config/base.yaml | grep tracking_uri
+
+# Check mlruns exists
+ls -la mlruns/
+```
+
+## Key Modules
+
+**`data_versioning.py`**:
+- `compute_file_hash()` — Hash files
+- `compute_dataframe_hash()` — Hash DataFrames
+- `DataVersionTracker` — Track versions
+- `ExperimentReproducer` — Reproduce experiments
+- `get_git_commit_hash()` — Get git version
+
+**`reproduce_experiment.py`**:
+- `reproduce_experiment()` — Main reproduction function
+- Handles missing commits gracefully
+- Shows all required information
+
+**`.dvc_metadata/`**:
+- JSON files with detailed version info
+- One file per data stage
+
+**`data_lineage.json` (MLflow artifact)**:
+- Complete lineage in one JSON file
+- Can be shipped with model for audit trail
+
+## Summary
+
+| Aspect | Mechanism | Captured |
+|--------|-----------|----------|
+| Data version | SHA-256 hashing | ✅ Logged to MLflow |
+| Code version | Git commit | ✅ Logged to MLflow |
+| Metadata | `.dvc_metadata/` JSONs | ✅ Accessible offline |
+| Lineage | `data_lineage.json` artifact | ✅ In MLflow |
+| Reproducibility | Checkout code + rerun | ✅ Exact same results |
+
+---
+
+**See Also**: 
+- [README.md](README.md) — Project overview
+- [USER_GUIDE.md](USER_GUIDE.md) — Step-by-step usage
+- [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md) — Deep technical details
