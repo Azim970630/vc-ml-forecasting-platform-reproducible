@@ -1,0 +1,24 @@
+# DVC pipeline configuration for data versioning and reproducibility
+
+stages:
+  prepare:
+    cmd: python -c "from data_sources import DummyGenerator; import os; os.makedirs('data', exist_ok=True); DummyGenerator().load({}).to_csv('data/raw_data.csv', index=False)"
+    deps:
+      - data_sources
+    outs:
+      - data/raw_data.csv
+
+  train:
+    cmd: python train.py
+    deps:
+      - data/raw_data.csv
+      - pipelines
+      - models
+      - features
+    params:
+      - config
+    outs:
+      - models
+    metrics:
+      - outputs/metrics.json:
+          cache: false

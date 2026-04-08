@@ -1,0 +1,65 @@
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ML/Data
+mlruns/
+mlflow.db
+*.parquet
+data/raw/
+data/processed/
+outputs/predictions/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Misc
+*.log
+.cache/
+
+# DVC
+data_store/
+.dvc/cache
+.dvc/tmp
+.dvc/plots
+dvc.lock

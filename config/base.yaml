@@ -1,0 +1,19 @@
+project_name: ml-forecasting-platform
+version: 0.1.0
+
+paths:
+  data_dir: data/
+  raw_data_dir: data/raw/
+  processed_data_dir: data/processed/
+  models_dir: models/
+  outputs_dir: outputs/
+  mlflow_dir: mlruns/
+
+mlflow:
+  tracking_uri: ./mlruns
+  experiment_name: ts-forecasting
+  run_name: default_run
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

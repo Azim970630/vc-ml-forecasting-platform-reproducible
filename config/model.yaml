@@ -1,0 +1,28 @@
+model:
+  type: lightgbm
+  horizon: 7
+  frequency: D
+
+  lightgbm:
+    n_estimators: 500
+    learning_rate: 0.05
+    num_leaves: 63
+    max_depth: -1
+    min_data_in_leaf: 20
+    subsample: 0.8
+    colsample_bytree: 0.8
+
+  arima:
+    order: [1, 1, 1]
+    seasonal_order: [0, 0, 0, 0]
+
+  cross_validation:
+    strategy: expanding_window
+    n_splits: 3
+    gap: 7
+
+  training:
+    test_size: 0.2
+    val_size: 0.1
+    random_seed: 42
+    tune: false

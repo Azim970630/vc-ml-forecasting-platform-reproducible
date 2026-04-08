@@ -1,0 +1,28 @@
+{
+  "name": "train_data",
+  "split": "train",
+  "hash": "e03560eeddafac374e10ae8490e42b92d07aba44c3e580a3e62052099d74d69b",
+  "timestamp": "2026-04-08T15:15:51.922465",
+  "shape": [
+    160,
+    14
+  ],
+  "columns": [
+    "timestamp",
+    "series_id",
+    "target",
+    "target_lag_1",
+    "target_lag_7",
+    "target_lag_28",
+    "target_rolling_mean_7",
+    "target_rolling_std_7",
+    "target_rolling_mean_14",
+    "target_rolling_std_14",
+    "day_of_week",
+    "month",
+    "quarter",
+    "day_of_year"
+  ],
+  "rows": 160,
+  "metadata": {}
+}

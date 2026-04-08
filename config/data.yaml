@@ -1,0 +1,23 @@
+data:
+  source: offline
+
+  dummy:
+    n_series: 5
+    n_timesteps: 365
+    frequency: D
+    date_start: "2023-01-01"
+    seasonality: 12
+    trend: true
+    noise_level: 0.05
+    random_seed: 42
+
+  offline:
+    file_path: data/raw/sales_data.csv
+    datetime_column: date
+    target_column: sales
+    series_id_column: store
+
+  validation:
+    check_nulls: true
+    check_duplicates: true
+    enforce_monotonic_time: true

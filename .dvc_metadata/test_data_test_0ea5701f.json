@@ -1,0 +1,28 @@
+{
+  "name": "test_data",
+  "split": "test",
+  "hash": "0ea5701f643538763b7a504911bc5f7bcf6a31ebf61c7bd5f38cccc8101da171",
+  "timestamp": "2026-04-08T15:15:51.923068",
+  "shape": [
+    40,
+    14
+  ],
+  "columns": [
+    "timestamp",
+    "series_id",
+    "target",
+    "target_lag_1",
+    "target_lag_7",
+    "target_lag_28",
+    "target_rolling_mean_7",
+    "target_rolling_std_7",
+    "target_rolling_mean_14",
+    "target_rolling_std_14",
+    "day_of_week",
+    "month",
+    "quarter",
+    "day_of_year"
+  ],
+  "rows": 40,
+  "metadata": {}
+}

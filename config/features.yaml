@@ -1,0 +1,14 @@
+feature_pipeline:
+  - name: LagFeatureTransformer
+    params:
+      lags: [1, 7, 28]
+
+  - name: RollingStatTransformer
+    params:
+      windows: [7, 14]
+      stats: [mean, std]
+
+  - name: CalendarFeatureTransformer
+    params:
+      include_holidays: false
+      country: US

@@ -1,0 +1,45 @@
+{
+  "name": "featured_data",
+  "split": "train",
+  "hash": "e971c05220389bbca5dccedfeb063bf207fda41f04a7b93db46acb3a35d6682b",
+  "timestamp": "2026-04-08T15:15:51.920422",
+  "shape": [
+    200,
+    14
+  ],
+  "columns": [
+    "timestamp",
+    "series_id",
+    "target",
+    "target_lag_1",
+    "target_lag_7",
+    "target_lag_28",
+    "target_rolling_mean_7",
+    "target_rolling_std_7",
+    "target_rolling_mean_14",
+    "target_rolling_std_14",
+    "day_of_week",
+    "month",
+    "quarter",
+    "day_of_year"
+  ],
+  "rows": 200,
+  "metadata": {
+    "features": [
+      "timestamp",
+      "series_id",
+      "target",
+      "target_lag_1",
+      "target_lag_7",
+      "target_lag_28",
+      "target_rolling_mean_7",
+      "target_rolling_std_7",
+      "target_rolling_mean_14",
+      "target_rolling_std_14",
+      "day_of_week",
+      "month",
+      "quarter",
+      "day_of_year"
+    ]
+  }
+}

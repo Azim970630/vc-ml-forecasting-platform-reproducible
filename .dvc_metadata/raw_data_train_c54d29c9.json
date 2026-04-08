@@ -1,0 +1,19 @@
+{
+  "name": "raw_data",
+  "split": "train",
+  "hash": "c54d29c95a144d72d576e3c1e20848b210081b37b49fff98ab94585a1105ffa9",
+  "timestamp": "2026-04-08T15:15:51.914053",
+  "shape": [
+    200,
+    3
+  ],
+  "columns": [
+    "timestamp",
+    "series_id",
+    "target"
+  ],
+  "rows": 200,
+  "metadata": {
+    "source": "offline"
+  }
+}
