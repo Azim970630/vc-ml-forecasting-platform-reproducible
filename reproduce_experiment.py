@@ -32,8 +32,19 @@ def checkout_code_version(commit_hash: str) -> bool:
         )
         print(f"✓ Checked out code version: {commit_hash}")
         return True
+    except subprocess.CalledProcessError as e:
+        if "unable to read tree" in e.stderr or "reference not found" in e.stderr:
+            print(f"⚠ Code version not found in this repo: {commit_hash}")
+            print(f"  This might mean:")
+            print(f"  - Experiment was from a different repository")
+            print(f"  - Commit was not pushed to this remote")
+            print(f"\nContinuing with current code (HEAD = {get_git_commit_hash()})")
+            return False
+        else:
+            print(f"✗ Failed to checkout code: {e.stderr}")
+            return False
     except Exception as e:
-        print(f"✗ Failed to checkout code: {e}")
+        print(f"✗ Error during checkout: {e}")
         return False
 
 
@@ -81,8 +92,9 @@ def reproduce_experiment(run_id: str, skip_checkout: bool = False) -> None:
     # Step 1: Checkout code
     code_version = metadata.get("code_version")
     if code_version and not skip_checkout:
-        if not checkout_code_version(code_version):
-            print("⚠ Continuing anyway (git error may be non-critical)")
+        success = checkout_code_version(code_version)
+        if not success:
+            print("⚠ Continuing anyway (attempting reproduction with current code)")
     else:
         print(f"✓ Code version: {code_version or 'No version recorded'}")
 
@@ -106,9 +118,13 @@ def reproduce_experiment(run_id: str, skip_checkout: bool = False) -> None:
     print(instructions)
 
     # Step 5: Offer to run training
+    current_version = get_git_commit_hash()
     print("\nReady to reproduce. Execute training with:")
-    print(f"  python train.py")
-    print(f"\nThis will use the exact same code/data/config from run {run_id}")
+    print(f"  python3 train.py")
+    if code_version != current_version:
+        print(f"\n⚠ Note: Running with current code ({current_version})")
+        print(f"  Original experiment used: {code_version}")
+        print(f"  Results may differ if code has changed.")
 
 
 def main():
