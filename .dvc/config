@@ -1,5 +1,7 @@
 [core]
     no_scm = True
-    remote = myremote
+    remote = azure
 ['remote "myremote"']
     url = ../data_store
+['remote "azure"']
+    url = azure://mlops-data

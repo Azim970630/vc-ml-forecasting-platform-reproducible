@@ -142,6 +142,167 @@ Example:
 }
 ```
 
+## Pulling Data by Hash (DVC Recovery)
+
+### How DVC Tracks Files by Hash
+
+Every data file is stored in DVC's cache and Azure using its SHA-256 hash:
+
+```bash
+# File added to DVC
+dvc add data/raw/sales_data.csv
+
+# Creates: data/raw/sales_data.csv.dvc
+cat data/raw/sales_data.csv.dvc
+# Output:
+# outs:
+# - hash: md5
+#   md5: eb7667eed5abf29cf3e2a508261bfb35
+#   path: data/raw/sales_data.csv
+#   size: 7800
+```
+
+The `.dvc` file is a **pointer** that says:
+- "This file's hash is `eb7667eed5abf29cf3e2a508261bfb35`"
+- "The actual data is stored in Azure Blob Storage at `azure://mlops-data`"
+
+### Pulling Exact Data by Hash
+
+When you run `dvc pull`, it uses the hash to find and restore the exact file:
+
+```bash
+# Step 1: Ensure .dvc file is tracked in git
+git add data/raw/sales_data.csv.dvc
+git commit -m "Track sales data with DVC"
+
+# Step 2: Later, restore the exact file
+dvc pull data/raw/sales_data.csv.dvc
+
+# Step 3: Verify it matches
+# DVC automatically verifies the hash:
+# - Downloads file from Azure
+# - Computes hash locally
+# - Verifies: hash_computed == hash_in_dvc_file
+# - If match → File is correct
+# - If mismatch → Error (corrupted transfer)
+```
+
+**What Gets Restored**:
+```
+Before pull:
+├─ data/raw/sales_data.csv      [doesn't exist]
+├─ data/raw/sales_data.csv.dvc  [exists - pointer file]
+
+After dvc pull:
+├─ data/raw/sales_data.csv      [restored from Azure]
+│  └─ hash: eb7667eed5abf29cf3e2a508261bfb35
+├─ data/raw/sales_data.csv.dvc  [unchanged - pointer file]
+```
+
+### Pull All Data for Reproducibility
+
+```bash
+# In a reproduction workflow:
+git checkout abc123...           # Get exact code version
+dvc pull                        # Get exact data version (all files)
+
+# This restores ALL .dvc-tracked files to match their hashes:
+# - data/raw/sales_data.csv
+# - Any other files added with: dvc add ...
+
+# Then run:
+python3 train.py
+# Uses exact same code + data → exact same results
+```
+
+### Pull Specific File by Hash
+
+```bash
+# If you only need one file
+dvc pull data/raw/sales_data.csv.dvc
+
+# Or if .dvc file is deleted but you have the hash:
+dvc pull --force  # Re-download all
+```
+
+### Verify Hash Integrity
+
+```python
+import json
+from data_versioning import compute_file_hash
+
+# Read expected hash from .dvc file
+with open('data/raw/sales_data.csv.dvc', 'r') as f:
+    dvc_content = f.read()
+    expected_hash = dvc_content.split('md5: ')[1].split('\n')[0]
+
+# Compute actual hash of pulled file
+actual_hash = compute_file_hash("data/raw/sales_data.csv")
+
+# Compare (first 8 chars usually enough for identification)
+if actual_hash.startswith(expected_hash[:8]):
+    print(f"✓ Hash verified: {expected_hash[:8]}")
+    print("✓ Data integrity confirmed")
+else:
+    print(f"✗ Hash mismatch!")
+    print(f"  Expected: {expected_hash}")
+    print(f"  Actual:   {actual_hash}")
+    raise ValueError("Data corruption detected")
+```
+
+### Status Check: What Needs to Be Pulled
+
+```bash
+# See which files are missing or have changed hashes
+dvc status
+
+# Example output:
+# data/raw/sales_data.csv.dvc:
+#   changed outs:
+#     deleted:    data/raw/sales_data.csv
+#     modified:   data/raw/sales_data.csv (modified)
+#
+# This means:
+# - File was deleted locally but exists in .dvc file
+# - dvc pull will restore it from Azure
+
+# Pull to fix:
+dvc pull
+# ✓ data/raw/sales_data.csv restored from Azure
+```
+
+### Advanced: Manual Hash-Based Recovery
+
+If DVC cache is corrupted, you can recover by hash directly from Azure:
+
+```python
+from azure.storage.blob import BlobServiceClient
+from pathlib import Path
+
+# Get connection string from DVC config
+import configparser
+config = configparser.ConfigParser()
+config.read('.dvc/config')
+conn_str = config['remote "azure"']['connection_string']
+
+# Connect to Azure
+blob_service = BlobServiceClient.from_connection_string(conn_str)
+container = blob_service.get_container_client("mlops-data")
+
+# Find file by hash in Azure storage structure
+# DVC stores as: files/md5/eb/7667eed5abf29cf3e2a508261bfb35
+hash_val = "eb7667eed5abf29cf3e2a508261bfb35"
+blob_path = f"files/md5/{hash_val[:2]}/{hash_val[2:]}"
+
+# Download
+blob_client = container.get_blob_client(blob_path)
+with open('data/raw/sales_data.csv', 'wb') as f:
+    download_stream = blob_client.download_blob()
+    f.write(download_stream.readall())
+
+print(f"✓ Recovered file from Azure using hash: {hash_val}")
+```
+
 ## Reproducing Experiments
 
 ### Complete Reproduction Workflow
@@ -169,7 +330,42 @@ Then checkout:
 git checkout 91b64a1504835d4
 ```
 
-#### Step 3: Run training again
+#### Step 3: Restore Data from Azure Blob Storage
+
+```bash
+# Pull data from Azure (DVC matches by hash automatically)
+dvc pull
+
+# This restores: data/raw/sales_data.csv
+# From Azure: azure://mlops-data
+# And verifies the hash matches what's in .dvc file
+```
+
+**Understanding DVC Pull with Hashes**:
+```
+.dvc file contains:           Azure Blob Storage contains:
+├─ file: sales_data.csv      ├─ files/md5/eb/7667eed5abf29cf3e2a508261bfb35
+├─ md5: eb7667ee...          │  (hash: eb7667eed5abf29cf3e2a508261bfb35)
+└─ size: 7800 bytes          └─ size: 7800 bytes
+
+dvc pull:
+1. Reads .dvc file → gets hash eb7667ee...
+2. Checks local disk → file doesn't exist
+3. Queries Azure → finds file with hash eb7667ee...
+4. Downloads file → verifies hash matches
+5. Stores locally → data/raw/sales_data.csv ready
+```
+
+**Verify Hash After Pull**:
+```python
+from data_versioning import compute_file_hash
+
+hash_after_pull = compute_file_hash("data/raw/sales_data.csv")
+print(f"Hash: {hash_after_pull}")
+# Should match what's in .dvc file
+```
+
+#### Step 4: Run training again
 
 ```bash
 python3 train.py
@@ -502,6 +698,124 @@ cat config/base.yaml | grep tracking_uri
 
 # Check mlruns exists
 ls -la mlruns/
+```
+
+## Complete Reproducibility Workflow: Code + Data + Hashes
+
+### The Full Picture
+
+```
+Original Run (Day 1):
+├─ Code: git commit abc123...
+├─ Data: data/raw/sales_data.csv
+│  ├─ SHA-256 hash: c54d29c9...
+│  └─ DVC hash (md5): eb7667ee...
+├─ MLflow logs:
+│  ├─ code_version: abc123...
+│  ├─ data_raw_data_hash: c54d29c9... (for audit)
+│  └─ run_id: 541d0c7f...
+├─ DVC tracking:
+│  ├─ .dvc_metadata/ folder (metadata)
+│  ├─ data/raw/sales_data.csv.dvc (pointer, committed to git)
+│  └─ data/raw/sales_data.csv (actual file, in Azure + local cache)
+└─ Result: MAE = 18.564
+
+Reproduction (Day 150 - auditor asks: prove it was 18.564):
+├─ Step 1: Query MLflow → find run_id 541d0c7f
+│  ├─ Extract: code_version = abc123...
+│  ├─ Extract: data_raw_data_hash = c54d29c9...
+│  └─ Confirm: model performance = 18.564
+├─ Step 2: Checkout git code
+│  └─ git checkout abc123...
+├─ Step 3: Verify .dvc file is in git
+│  └─ data/raw/sales_data.csv.dvc (commit abc123 has it)
+├─ Step 4: Pull exact data from Azure by hash
+│  ├─ dvc pull
+│  ├─ Reads: data/raw/sales_data.csv.dvc
+│  ├─ Gets hash: eb7667ee...
+│  ├─ Queries Azure: files/md5/eb/7667eed5abf29cf3e2a508261bfb35
+│  ├─ Downloads: data/raw/sales_data.csv
+│  └─ Verifies hash matches ✓
+├─ Step 5: Verify data integrity
+│  ├─ compute_file_hash("data/raw/sales_data.csv")
+│  ├─ Get: c54d29c9... (matches MLflow log ✓)
+│  └─ Confirmed: using exact data
+├─ Step 6: Re-run training
+│  └─ python3 train.py
+└─ Result: MAE = 18.564 ✓✓✓
+   (PROOF: Code + Data + Results match perfectly)
+```
+
+### Quick Reference: How Hashes Enable Reproducibility
+
+| Component | Hash Type | Purpose | Stored Where |
+|-----------|-----------|---------|--------------|
+| Data file | SHA-256 | Proof of exact data used | MLflow params + .dvc_metadata/ |
+| Data file | MD5 (DVC) | Locate file in Azure storage | .dvc file (pointer) |
+| Code | Git SHA | Proof of exact code used | MLflow params + Git history |
+| Model | N/A | Trained artifact | MLflow artifacts |
+
+**The chain**:
+```
+Audit request
+  ↓
+MLflow logs: code_version + data_hash
+  ↓
+git checkout code_version
+  ↓
+dvc pull (uses MD5 to find file in Azure)
+  ↓
+Verify SHA-256 hash matches MLflow record
+  ↓
+Re-run training
+  ↓
+Results match exactly ✓
+```
+
+### Hands-On: End-to-End Reproduction
+
+```bash
+# 1. You have a run ID from 6 months ago
+RUN_ID="541d0c7fdb9a43999a5d12be2c7f9d31"
+
+# 2. Get the metadata
+python3 reproduce_experiment.py --run-id $RUN_ID
+# Output:
+# Code version: 91b64a1504835d4...
+# Data versions:
+#   - raw_data: c54d29c9...
+# Metrics:
+#   - mae: 18.564
+
+# 3. Checkout exact code
+git checkout 91b64a1504835d4
+
+# 4. Check what .dvc file looks like
+cat data/raw/sales_data.csv.dvc
+# Shows MD5 hash for Azure location
+
+# 5. Pull data from Azure (automatic hash matching)
+dvc pull
+# Downloads: data/raw/sales_data.csv from Azure
+# Verifies hash matches .dvc file
+
+# 6. Verify data integrity
+python3 << 'PYEOF'
+from data_versioning import compute_file_hash
+actual = compute_file_hash("data/raw/sales_data.csv")
+expected = "c54d29c9..."
+assert actual.startswith(expected[:8]), "Hash mismatch!"
+print("✓ Data verified")
+PYEOF
+
+# 7. Retrain
+python3 train.py
+# New run ID: xyz-789
+
+# 8. Check result
+mlflow ui
+# Run xyz-789: mae = 18.564
+# ✓ Matches original (541d0c7f) perfectly!
 ```
 
 ## Key Modules

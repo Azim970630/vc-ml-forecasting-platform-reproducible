@@ -27,5 +27,5 @@ stages:
     metrics:
       - outputs/metrics.json:
           cache: false
-    plots:
-      - outputs/
+    outs:
+      - outputs/predictions.csv

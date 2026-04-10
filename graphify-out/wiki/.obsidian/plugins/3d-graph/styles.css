@@ -1,0 +1,145 @@
+/* 3D Graph Plugin - Community-based Node Coloring */
+
+/* Use CSS variables for 3D graph nodes */
+.graph-3d-view .node[data-community="0"],
+[data-community="0"] { --node-color: #00BCD4; }
+.graph-3d-view .node[data-community="1"],
+[data-community="1"] { --node-color: #9C27B0; }
+.graph-3d-view .node[data-community="2"],
+[data-community="2"] { --node-color: #FF9800; }
+.graph-3d-view .node[data-community="3"],
+[data-community="3"] { --node-color: #4CAF50; }
+.graph-3d-view .node[data-community="4"],
+[data-community="4"] { --node-color: #8D6E63; }
+.graph-3d-view .node[data-community="5"],
+[data-community="5"] { --node-color: #E53935; }
+.graph-3d-view .node[data-community="6"],
+[data-community="6"] { --node-color: #9E9E9E; }
+.graph-3d-view .node[data-community="7"],
+[data-community="7"] { --node-color: #FBC02D; }
+.graph-3d-view .node[data-community="8"],
+[data-community="8"] { --node-color: #BDBDBD; }
+.graph-3d-view .node[data-community="9"],
+[data-community="9"] { --node-color: #FFE082; }
+.graph-3d-view .node[data-community="10"],
+[data-community="10"] { --node-color: #7B1FA2; }
+.graph-3d-view .node[data-community="11"],
+[data-community="11"] { --node-color: #7B1FA2; }
+.graph-3d-view .node[data-community="12"],
+[data-community="12"] { --node-color: #66BB6A; }
+.graph-3d-view .node[data-community="13"],
+[data-community="13"] { --node-color: #AED581; }
+
+/* Architecture concepts - Cyan */
+.graph-3d-view .node[data-community="15"],
+.graph-3d-view .node[data-community="16"],
+.graph-3d-view .node[data-community="17"],
+.graph-3d-view .node[data-community="18"],
+.graph-3d-view .node[data-community="19"],
+.graph-3d-view .node[data-community="20"],
+.graph-3d-view .node[data-community="21"],
+.graph-3d-view .node[data-community="22"],
+.graph-3d-view .node[data-community="23"],
+.graph-3d-view .node[data-community="24"],
+.graph-3d-view .node[data-community="25"],
+.graph-3d-view .node[data-community="26"],
+.graph-3d-view .node[data-community="27"],
+.graph-3d-view .node[data-community="28"],
+.graph-3d-view .node[data-community="29"],
+[data-community="15"],
+[data-community="16"],
+[data-community="17"],
+[data-community="18"],
+[data-community="19"],
+[data-community="20"],
+[data-community="21"],
+[data-community="22"],
+[data-community="23"],
+[data-community="24"],
+[data-community="25"],
+[data-community="26"],
+[data-community="27"],
+[data-community="28"],
+[data-community="29"] { --node-color: #80DEEA; }
+
+/* Individual component colors */
+.graph-3d-view .node[data-community="30"], [data-community="30"] { --node-color: #CE93D8; }
+.graph-3d-view .node[data-community="31"], [data-community="31"] { --node-color: #CE93D8; }
+.graph-3d-view .node[data-community="32"], [data-community="32"] { --node-color: #B3E5FC; }
+.graph-3d-view .node[data-community="33"], [data-community="33"] { --node-color: #B3E5FC; }
+.graph-3d-view .node[data-community="34"], [data-community="34"] { --node-color: #B3E5FC; }
+.graph-3d-view .node[data-community="35"], [data-community="35"] { --node-color: #D7CCC8; }
+.graph-3d-view .node[data-community="36"], [data-community="36"] { --node-color: #FFCC80; }
+.graph-3d-view .node[data-community="37"], [data-community="37"] { --node-color: #FFCC80; }
+.graph-3d-view .node[data-community="38"], [data-community="38"] { --node-color: #C8E6C9; }
+.graph-3d-view .node[data-community="39"], [data-community="39"] { --node-color: #E1BEE7; }
+.graph-3d-view .node[data-community="40"], [data-community="40"] { --node-color: #E1BEE7; }
+.graph-3d-view .node[data-community="41"], [data-community="41"] { --node-color: #E1BEE7; }
+.graph-3d-view .node[data-community="42"], [data-community="42"] { --node-color: #FFF9C4; }
+.graph-3d-view .node[data-community="43"], [data-community="43"] { --node-color: #FFF9C4; }
+.graph-3d-view .node[data-community="44"], [data-community="44"] { --node-color: #FFE0B2; }
+.graph-3d-view .node[data-community="45"], [data-community="45"] { --node-color: #FFCCBC; }
+.graph-3d-view .node[data-community="46"], [data-community="46"] { --node-color: #BBDEFB; }
+.graph-3d-view .node[data-community="47"], [data-community="47"] { --node-color: #C8E6C9; }
+.graph-3d-view .node[data-community="48"], [data-community="48"] { --node-color: #D7CCC8; }
+.graph-3d-view .node[data-community="49"], [data-community="49"] { --node-color: #FFCC80; }
+.graph-3d-view .node[data-community="50"], [data-community="50"] { --node-color: #FFCCBC; }
+.graph-3d-view .node[data-community="51"], [data-community="51"] { --node-color: #D7CCC8; }
+.graph-3d-view .node[data-community="52"],
+.graph-3d-view .node[data-community="53"],
+.graph-3d-view .node[data-community="54"],
+.graph-3d-view .node[data-community="55"],
+[data-community="52"],
+[data-community="53"],
+[data-community="54"],
+[data-community="55"] { --node-color: #F5F5F5; }
+
+/* Design patterns - Light purple */
+.graph-3d-view .node[data-community="56"],
+.graph-3d-view .node[data-community="57"],
+.graph-3d-view .node[data-community="58"],
+[data-community="56"],
+[data-community="57"],
+[data-community="58"] { --node-color: #E8EAF6; }
+
+/* Dependencies - Light blue-gray */
+.graph-3d-view .node[data-community="59"],
+.graph-3d-view .node[data-community="60"],
+[data-community="59"],
+[data-community="60"] { --node-color: #CFD8DC; }
+
+/* Apply colors to actual node elements */
+.graph-node,
+.node,
+.scene-node {
+  background-color: var(--node-color, #666);
+  fill: var(--node-color, #666);
+  color: var(--node-color, #666);
+}
+
+/* 3D Graph sphere nodes */
+.graph-3d-view canvas + svg circle,
+.node-circle {
+  fill: var(--node-color, #666);
+}
+
+/* Hover effects */
+.graph-3d-view .node:hover,
+.graph-node:hover {
+  filter: brightness(1.2) drop-shadow(0 0 8px var(--node-color, #ccc));
+  opacity: 1 !important;
+}
+
+/* Link styling */
+.graph-3d-view .link,
+.graph-link,
+line[class*="link"] {
+  stroke: rgba(200, 200, 200, 0.3);
+  opacity: 0.4;
+}
+
+.graph-3d-view .link:hover,
+.graph-link:hover {
+  stroke: rgba(255, 255, 255, 0.6);
+  opacity: 0.8;
+}

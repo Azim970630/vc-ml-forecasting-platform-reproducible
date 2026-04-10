@@ -63,11 +63,47 @@ dvc remote modify s3remote --local access_key_id YOUR_KEY
 dvc remote modify s3remote --local secret_access_key YOUR_SECRET
 ```
 
-**Option C: Azure Blob (Production)**
+**Option C: Azure Blob Storage (Production)** ← We use this
 ```bash
-dvc remote add azure remote://my-container
+# Install Azure support
+pip install dvc-azure
+
+# Add Azure remote
+dvc remote add azure azure://mlops-data
 dvc remote default azure
+
+# Configure using environment variable (SECURE - no secrets in config)
+export AZURE_STORAGE_CONNECTION_STRING="your-connection-string"
+
+# Or use account name + key in environment
+export AZURE_STORAGE_ACCOUNT=adlsgdigdatalakedev
+export AZURE_STORAGE_KEY=your-account-key
+
+# Verify configuration
+dvc remote list -v
+dvc status  # Will use env vars automatically
 ```
+
+**For this project** (configured securely):
+```bash
+# Remote is at: azure://mlops-data
+# Storage account: adlsgdigdatalakedev
+# Connection: Via AZURE_STORAGE_CONNECTION_STRING environment variable
+
+# Set your connection string once
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=adlsgdigdatalakedev;AccountKey=...;EndpointSuffix=core.windows.net"
+
+# Then use DVC normally
+dvc pull
+dvc push
+dvc status
+```
+
+**Why environment variables?**
+- Secrets never committed to git
+- GitHub's push protection prevents accidental leaks
+- Easy to manage locally vs CI/CD
+- Works across all DVC commands automatically
 
 **Option D: Google Cloud Storage (Production)**
 ```bash
@@ -172,11 +208,39 @@ Model parameters:
 # Checkout exact code version
 git checkout abc123def456ghi789jkl012mno345
 
-# Restore exact data from remote
+# Restore exact data from Azure Blob Storage
 python3 reproduce_experiment.py --run-id abc-123 --restore-data
 
-# This runs: dvc pull
-# Which restores data/raw_data.csv to match the hash c54d29c9...
+# This automatically runs: dvc pull
+# Which restores data/raw_data.csv from Azure Blob to match the hash
+```
+
+**Manual Pull (if restore-data doesn't work)**:
+
+```bash
+# Pull all DVC-tracked files
+dvc pull
+
+# Or pull specific file
+dvc pull data/raw/sales_data.csv.dvc
+
+# Or pull from specific hash
+dvc pull -f  # Force re-download even if file exists
+```
+
+**Verify Data Hash After Pull**:
+
+```python
+from data_versioning import compute_file_hash
+
+# Compute hash of restored file
+actual_hash = compute_file_hash("data/raw/sales_data.csv")
+expected_hash = "c54d29c9..."  # From MLflow logs
+
+if actual_hash.startswith(expected_hash[:8]):
+    print("✓ Data integrity verified - hash matches!")
+else:
+    print("✗ Hash mismatch - data corrupted or wrong version")
 ```
 
 ### Step 3: Verify Data Matches
@@ -418,21 +482,54 @@ dvc pull data/raw_data_2026-04-08.csv.dvc
 
 ## Cost Considerations for Cloud Storage
 
-### AWS S3 Pricing
+### Azure Blob Storage Pricing (Current Setup)
 
-**Development**: Start with local storage (free)
+**Current setup**: Azure Blob Storage (`adlsgdigdatalakedev`)
 ```bash
-dvc remote add myremote ./data_store
+# Already configured
+dvc remote list
+# Output: azure    azure://mlops-data    (default)
 ```
 
-**Production**: Migrate to S3 for team/production use
-```bash
-dvc remote add s3remote s3://my-bucket/ml-data
+**Pricing Tiers**:
+
+| Tier | Storage Cost | Use Case |
+|------|--------------|----------|
+| Hot | ~$0.0184/GB/month | Active/frequent access |
+| Cool | ~$0.0092/GB/month | Infrequent access (30+ days) |
+| Archive | ~$0.00099/GB/month | Long-term retention (90+ days) |
+
+**Example Costs (Hot tier)**:
+- 10GB data: $0.184/month (~$2.20/year)
+- 100GB data: $1.84/month (~$22/year)
+- 1TB data: $18.40/month (~$220/year)
+
+**Outbound Data Transfer**:
+- Within Azure datacenter: Free
+- To other regions: ~$0.02/GB
+- To internet: ~$0.087/GB (minimize this)
+
+**Operations**:
+- Write operations: ~$0.05 per 10,000 operations
+- Read operations: ~$0.004 per 10,000 operations
+- Negligible for typical ML workflows
+
+**Example Workflow Cost**:
 ```
+Training pipeline with 100MB data, 10 runs/month:
+├─ Storage: 100MB = $0.0018/month
+├─ Uploads (10 × 100MB): 0.50 ops = $0.03
+├─ Downloads (10 × 100MB): 0.50 ops = $0.002
+└─ Total: ~$0.03/month (minimal)
+```
+
+### AWS S3 Pricing (Comparison)
+
+If you switch to AWS S3 later:
 
 **Typical Costs**:
 - Storage: ~$0.023/GB/month (Standard tier)
-- Requests: Negligible (~$20-30/month)
+- Requests: ~$20-30/month
 - Data transfer OUT: ~$0.09/GB (can be significant)
 
 **Example**:
@@ -441,42 +538,57 @@ dvc remote add s3remote s3://my-bucket/ml-data
 - Annual cost: ~$1,000-1,500 including requests
 
 **Cost Optimization**:
-- Use Intelligent-Tiering: ~$0.0125/GB/month (auto-optimizes)
+- Use Intelligent-Tiering: ~$0.0125/GB/month
 - Archive old data with Glacier: ~$0.004/GB/month
 - Compress data before upload
 - Use VPC Endpoint (if on EC2): saves transfer costs
 
-### Migration Path
+### Azure vs S3 vs GCS Comparison
 
-Start with **local storage** (current setup):
+| Provider | Hot Storage | Transfer OUT | Setup | DVC Support |
+|----------|------------|--------------|-------|-------------|
+| **Azure** (current) | $0.0184/GB/mo | ~$0.087/GB | ✅ Done | ✅ Good |
+| AWS S3 | $0.023/GB/mo | ~$0.09/GB | Moderate | ✅ Excellent |
+| GCS | $0.020/GB/mo | $0.12/GB | Moderate | ✅ Good |
+
+**Recommendation**: 
+✅ **Azure Blob Storage is cost-effective** for this project
+- Cheapest hot storage ($0.0184/GB/mo vs S3's $0.023/GB/mo)
+- Already configured and working
+- Good Azure ecosystem integration
+
+### How to Pull Data from Azure by Hash
+
+DVC automatically handles hash-based pulling:
+
 ```bash
-# Development - no costs
-dvc remote add myremote ./data_store
-```
-
-Later, when ready for production:
-```bash
-# Create S3 bucket
-aws s3 mb s3://my-ml-bucket
-
-# Update DVC remote
-dvc remote modify myremote url s3://my-ml-bucket/ml-data
-
-# Push all data to S3
-dvc push
-
-# Team members can now pull data
+# Pull all data (DVC matches hashes automatically)
 dvc pull
+
+# This will:
+# 1. Read .dvc files to get file hashes
+# 2. Check if local file exists with matching hash
+# 3. If hash matches → skip (already have it)
+# 4. If hash differs or missing → download from Azure
+# 5. Verify hash after download
+
+# Example output:
+# Fetching 'data/raw/sales_data.csv' from 'azure'...
+# 1 file fetched
 ```
 
-### Recommendation
+**Status Check**:
+```bash
+# See what needs to be pulled
+dvc status
 
-✅ **For this project**: Keep local storage for now (free, simple)
-- Perfect for development and testing
-- No setup complexity
-- Easy to switch to S3 later without code changes
+# Example:
+# data/raw/sales_data.csv.dvc:
+#   changed outs:
+#     modified:   data/raw/sales_data.csv (modified)
+```
 
-When you're ready for production:
-- Migrate to S3 (affordable, widely used)
-- Or use Azure Blob Storage (if already using Azure)
-- Or use GCS (if already using Google Cloud)
+**Force Re-pull** (if corrupted):
+```bash
+dvc pull -f  # Force download even if hash matches
+```
