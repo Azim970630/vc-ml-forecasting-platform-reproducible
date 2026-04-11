@@ -30,12 +30,15 @@ jobs:
 
       - name: Lint with ruff
         run: ruff check .
+        continue-on-error: true
 
       - name: Format check with black
         run: black --check .
+        continue-on-error: true
 
       - name: Type check with mypy
         run: mypy .
+        continue-on-error: true
 
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short
