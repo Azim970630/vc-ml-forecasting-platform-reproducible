@@ -30,14 +30,25 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt  # For development
 ```
 
-### 2. Run Training with Data Versioning
+### 2. Restore Data with DVC (Production Use)
+
+If cloning fresh or reproducing from production:
+
+```bash
+# Restore exact data from remote storage (Azure Blob Storage, S3, GCS, etc.)
+dvc pull
+```
+
+This restores the exact data files tracked with DVC. For local development without remote setup, the dummy data generator will create sample data automatically.
+
+### 3. Run Training with Data Versioning
 
 ```bash
 python3 train.py
 ```
 
 This will:
-- Load data and track its version (hash)
+- Load data and track its version (SHA-256 hash)
 - Engineer features and track version
 - Split data and track each split's version
 - Train the model
@@ -54,30 +65,30 @@ Experiment run ID: 541d0c7fdb9a43...
 Code version: 91b64a1504835d4...
 ```
 
-### 3. Reproduce an Experiment
+### 4. Reproduce a Production Experiment
 
-To recreate exact same inference results from any past experiment:
+To recreate exact same inference results from any past production experiment:
 
 ```bash
-python3 reproduce_experiment.py --run-id 541d0c7fdb9a43999a5d12be2c7f9d31
+python3 reproduce_experiment.py --run-id 541d0c7fdb9a43999a5d12be2c7f9d31 --restore-data
 ```
 
-This shows:
-- Exact code version used
-- All data versions (with hashes)
-- Model parameters
-- Instructions to re-run exactly
+This will:
+- ✓ Restore the exact code version (via git checkout)
+- ✓ Restore the exact data version (via dvc pull)
+- Show data hashes for verification
+- Provide instructions to re-run with original parameters
 
-### 4. View in MLflow
+### 5. View in MLflow
 
 ```bash
 mlflow ui
 ```
 
 Browse to http://localhost:5000 to see:
-- All experiment runs
+- All experiment runs with dates/metrics
 - Data versions and code versions logged as parameters
-- Model artifacts and metrics
+- Model artifacts and performance metrics
 - Complete lineage artifact (`data_lineage.json`)
 
 ## Architecture

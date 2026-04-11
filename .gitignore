@@ -40,6 +40,15 @@ data/raw/
 data/processed/
 outputs/predictions/
 
+# Trained model artifacts (use MLflow or DVC instead)
+models/*.pkl
+
+# Auto-generated tool output
+graphify-out/
+
+# Obsidian personal workspace
+Claude Code - MLOps/
+
 # Environment
 .env
 .env.local
@@ -63,3 +72,5 @@ data_store/
 .dvc/tmp
 .dvc/plots
 dvc.lock
+.dvc_metadata/
+.dvc/config.local

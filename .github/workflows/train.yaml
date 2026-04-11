@@ -11,11 +11,6 @@ on:
       - "pipelines/**"
       - "train.py"
   workflow_dispatch:
-    inputs:
-      model_type:
-        description: "Model type to train"
-        required: false
-        default: "lightgbm"
 
 jobs:
   train:

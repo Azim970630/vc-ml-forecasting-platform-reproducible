@@ -1,31 +1,12 @@
-# DVC Pipeline Configuration
-# 
-# Note: This is optional. The core reproducibility works through:
-# 1. Data versioning (SHA-256 hashing in data_versioning.py)
-# 2. Code versioning (git commits)
-# 3. Experiment tracking (MLflow)
+# DVC Data Versioning Configuration
 #
-# DVC is useful for:
-# - Tracking large data files (dvc add data/file.csv)
-# - Remote storage (S3, GCS, etc.)
-# - Team collaboration on data
+# Track input data files only (not outputs)
+# Outputs are generated fresh during reproduction
 #
-# For this project, reproducibility doesn't require DVC pipelines.
-# Just use: git checkout <commit> && python3 train.py
-
-stages:
-  # Optional: Define training as a DVC stage for pipeline reproducibility
-  train:
-    cmd: python3 train.py
-    deps:
-      - pipelines
-      - models
-      - features
-      - data_sources
-    params:
-      - config
-    metrics:
-      - outputs/metrics.json:
-          cache: false
-    outs:
-      - outputs/predictions.csv
+# For reproducibility:
+# 1. Input data is tracked with DVC (restored from remote)
+# 2. Code is versioned in git (restored with git checkout)
+# 3. Outputs are generated fresh by training (ensures consistency)
+#
+# Input files are tracked with: dvc add data/raw/sales_data.csv
+# DVC pipelines (dvc repro) are not used in this project

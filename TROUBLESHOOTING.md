@@ -234,7 +234,7 @@ MLflow directory doesn't exist yet—this is normal on first run.
 
 ```bash
 # Just run training, it will create mlruns/
-python3 test_mvp.py
+python3 train.py
 
 # mlruns directory is created automatically
 ```
@@ -264,7 +264,7 @@ python3 test_mvp.py
 
 4. If no runs, run training:
    ```bash
-   python3 test_mvp.py
+   python3 train.py
    ```
 
 5. Refresh browser (Ctrl+R or Cmd+R)
@@ -294,6 +294,119 @@ lsof -i :5000
 # Kill it
 kill -9 <PID>
 ```
+
+---
+
+## DVC Issues
+
+### "dvc pull: ERROR: failed to pull data - Checkout failed for following targets"
+
+**Error**:
+```
+WARNING: No file hash info found for '/path/to/outputs/predictions.csv'. It won't be created.
+ERROR: failed to pull data from the cloud - Checkout failed for following targets:
+outputs/predictions.csv
+Is your cache up to date?
+```
+
+**Cause**:
+Your `dvc.yaml` is configured to track **outputs** (which don't exist) instead of **input data**. DVC tries to restore these non-existent files and fails.
+
+**Solution**:
+
+1. Check your `dvc.yaml`:
+   ```bash
+   cat dvc.yaml
+   ```
+
+2. If it has an `outs:` section that tracks outputs, remove it:
+   ```yaml
+   # ❌ Wrong - don't track outputs
+   stages:
+     train:
+       outs:
+         - outputs/predictions.csv  # Remove this!
+
+   # ✅ Correct - only track input data via dvc add
+   # dvc.yaml can be empty or minimal
+   ```
+
+3. After removing `outs:` from `dvc.yaml`, test again:
+   ```bash
+   dvc pull
+   ```
+
+**Why this matters**:
+- **Input data** → Track with DVC (`dvc add data/raw/file.csv`)
+- **Outputs** → Generate fresh during training (don't track in DVC)
+- This ensures reproducibility: exact inputs + code = consistent outputs
+
+---
+
+### "dvc pull: ERROR: failed to connect to azure - Authentication required"
+
+**Error**:
+```
+ERROR: failed to connect to azure (mlops-data) - Authentication to Azure Blob Storage requires either account_name or connection_string.
+```
+
+**Solution**:
+
+1. Set Azure connection string as environment variable:
+   ```bash
+   export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"
+   ```
+
+2. Or set account name + key:
+   ```bash
+   export AZURE_STORAGE_ACCOUNT=your_account_name
+   export AZURE_STORAGE_KEY=your_account_key
+   ```
+
+3. Then try again:
+   ```bash
+   dvc pull
+   ```
+
+**For CI/CD**:
+Store credentials as GitHub Secrets, not in `.dvc/config`:
+- GitHub Settings → Secrets and variables → Actions
+- Add `AZURE_STORAGE_CONNECTION_STRING`
+- In workflow, set: `env: { AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }} }`
+
+---
+
+### "dvc pull: Everything is up to date" (but data files don't exist)
+
+**Error**:
+```
+Everything is up to date.
+# But data/raw/sales_data.csv doesn't exist locally
+```
+
+**Cause**:
+No `.dvc` files exist to tell DVC what to restore. Data hasn't been tracked with `dvc add`.
+
+**Solution**:
+
+1. Check if `.dvc` files exist:
+   ```bash
+   find . -name "*.dvc" -type f
+   # Should see: data/raw/sales_data.csv.dvc
+   ```
+
+2. If missing, add data to DVC:
+   ```bash
+   dvc add data/raw/sales_data.csv
+   git add data/raw/sales_data.csv.dvc .gitignore
+   git commit -m "Track data with DVC"
+   dvc push  # Push to remote
+   ```
+
+3. If files exist but data is missing locally, pull:
+   ```bash
+   dvc pull --force  # Force re-download
+   ```
 
 ---
 
